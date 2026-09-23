@@ -66,6 +66,7 @@ main{flex:1 1 auto;min-height:0;width:100%;max-width:640px;display:flex;flex-dir
 @keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
 .preview{height:2.2rem;line-height:2.2rem;margin:6px 0 0;font-family:var(--t-font);font-size:1.4rem;letter-spacing:.08em;flex:none}
 .preview .raw{opacity:.45}
+.preview .alt{font-size:.8em;opacity:.6}
 #toast{position:fixed;top:calc(80px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);
   background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:6px;font-size:1rem;
   opacity:0;pointer-events:none;transition:opacity .2s}
@@ -203,7 +204,7 @@ function decompose(word){
   }
   return out;
 }
-function compose(js){
+function compose(js,preferDouble=true){
   let text='', raw='', valid=true, i=0;
   const parts=[];
   while(i<js.length){
@@ -214,8 +215,8 @@ function compose(js){
       while(js[j]&&VCOMB[v+js[j]]){v=VCOMB[v+js[j]];j++;}
       let f='';
       const a=js[j], b=js[j+1], d=js[j+2];
-      if(isC(a)&&JONG.includes(a)&&!isV(b)&&!(a===b&&DBL_R[a]&&isV(d))){
-        if(isC(b)&&CCOMB[a+b]&&!isV(d)){f=CCOMB[a+b];j+=2;}
+      if(isC(a)&&JONG.includes(a)&&!isV(b)&&!(preferDouble&&a===b&&DBL_R[a]&&isV(d))){
+        if(isC(b)&&CCOMB[a+b]&&!isV(d)&&!(preferDouble&&b===d&&DBL_R[b]&&isV(js[j+3]))){f=CCOMB[a+b];j+=2;}
         else{f=a;j++;}
       }
       parts.push({s:String.fromCharCode(0xAC00+(CHO.indexOf(c)*21+JUNG.indexOf(v))*28+JONG.indexOf(f)),ok:true});
@@ -289,7 +290,9 @@ function renderPreview(){
   if(done||!cur.length){el.innerHTML='&nbsp;';return;}
   const hit=cur.length===LEN&&parseWords(wordText).find(x=>x.j.join('')===cur.join(''));
   if(hit){el.textContent=hit.w;return;}
-  el.innerHTML=compose(cur).parts.map(p=>p.ok?p.s:`<span class="raw">${p.s}</span>`).join('');
+  const html=c=>c.parts.map(p=>p.ok?p.s:`<span class="raw">${p.s}</span>`).join('');
+  const a=compose(cur,false), b=compose(cur,true);
+  el.innerHTML=a.text===b.text?html(a):`${html(a)}<span class="alt"> 또는 ${html(b)}</span>`;
 }
 function score(g){
   const n=g.length, res=Array(n).fill('miss'), left={};
