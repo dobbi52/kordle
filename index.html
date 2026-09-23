@@ -42,7 +42,12 @@ h1{font-family:var(--t-font);font-weight:400;font-size:clamp(1.2rem,5.5vw,1.7rem
 .tools button:hover{background:var(--line-soft)}
 button:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--near);outline-offset:2px}
 main{flex:1 1 auto;min-height:0;width:100%;max-width:640px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 12px 4px}
-.info{font-size:.9rem;margin-bottom:8px;opacity:.85;flex:none}
+.inforow{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex:none}
+.info{font-size:.9rem;opacity:.85}
+.tbtn{font-family:var(--b-font);font-size:.82rem;border:1.5px solid var(--line);background:transparent;color:var(--ink);padding:3px 9px;border-radius:999px;cursor:pointer;touch-action:manipulation}
+.tries{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
+.tries button{font-family:var(--t-font);font-size:1.3rem;padding:12px 0;border:1.5px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);cursor:pointer}
+.tries button.sel{background:var(--ok);border-color:var(--ok);color:#fff}
 #board{
   --n:6; --gap:5px;
   --t:48px;
@@ -113,7 +118,7 @@ main{flex:1 1 auto;min-height:0;width:100%;max-width:640px;display:flex;flex-dir
   </div>
 </header>
 <main>
-  <div class="info" id="info"></div>
+  <div class="inforow"><span class="info" id="info"></span><button id="bTries" class="tbtn">기회 바꾸기</button></div>
   <div id="board" aria-live="polite"></div>
   <div class="preview" id="preview"></div>
 </main>
@@ -122,13 +127,20 @@ main{flex:1 1 auto;min-height:0;width:100%;max-width:640px;display:flex;flex-dir
 
 <div class="overlay" id="ovHelp"><div class="card">
   <h2>하는 방법</h2>
-  <p>낱말을 자음과 모음으로 풀어 한 칸에 하나씩 넣어요. 기회는 6번이에요.</p>
+  <p>낱말을 자음과 모음으로 풀어 한 칸에 하나씩 넣어요. 기회는 <span id="helpTries">6</span>번이에요.</p>
   <div class="legend"><span style="background:var(--ok)">ㄱ</span> 자리까지 맞음</div>
   <div class="legend"><span style="background:var(--near)">ㅏ</span> 들어 있지만 자리가 다름</div>
   <div class="legend"><span style="background:var(--miss)">ㅁ</span> 들어 있지 않음</div>
   <p style="margin-top:12px">낱말은 모두 자모 6칸이에요. ㄲ은 ㄱ+ㄱ, ㅆ은 ㅅ+ㅅ처럼 두 칸으로 넣고, ㅘ는 ㅗ+ㅏ, ㅙ는 ㅗ+ㅏ+ㅣ, 겹받침 ㄺ은 ㄹ+ㄱ으로 나눠 넣어요. ㅐ는 ㅏ+ㅣ, ㅔ는 ㅓ+ㅣ로 두 칸이에요.</p>
   <p class="note">키보드로도 입력돼요. 한/영 상태와 상관없이 두벌식 자리대로 들어가요. Delete 키를 누르면 한 줄을 모두 지워요.</p>
   <div class="actions"><button class="main" data-close>시작하기</button></div>
+</div></div>
+
+<div class="overlay" id="ovTries"><div class="card" style="max-width:360px">
+  <h2>기회 횟수</h2>
+  <p class="note">고르면 새 문제가 시작돼요.</p>
+  <div class="tries" id="triesBox"></div>
+  <div class="actions"><button data-close>닫기</button></div>
 </div></div>
 
 <div class="overlay" id="ovPw"><div class="card" style="max-width:320px">
@@ -224,7 +236,7 @@ let wordText=store.get('words',DEFAULT_WORDS);
 let strict=store.get('strict',false);
 let stats=store.get('stats',{play:0,win:0,streak:0});
 let pool=[], answer=null, answerJ=[], rows=[], cur=[], done=false, keyState={};
-const MAX=6;
+let MAX=store.get('tries',6);
 
 function parseWords(t){
   const seen=new Set(), list=[];
@@ -249,8 +261,10 @@ function newGame(){
   do{pick=pool[Math.floor(Math.random()*pool.length)];}while(pool.length>1&&answer&&pick.w===answer);
   answer=pick.w; answerJ=pick.j; rows=[]; cur=[]; done=false; keyState={};
   board.style.setProperty('--n',answerJ.length);
+  document.getElementById('helpTries').textContent=MAX;
   document.getElementById('info').textContent=`자모 6칸 · 남은 기회 6번`;
   renderBoard(); renderKbd(); renderPreview();
+  if(typeof fit==='function')fit();
 }
 function renderBoard(flipRow=-1){
   document.getElementById('info').textContent=`자모 6칸 · 남은 기회 ${MAX-rows.length}번`;
@@ -400,13 +414,23 @@ document.getElementById('bGive').onclick=()=>{
 document.getElementById('bNew').onclick=()=>newGame();
 document.getElementById('bNext').onclick=()=>{closeAll();newGame();};
 document.getElementById('bHelp').onclick=()=>open('ovHelp');
+document.getElementById('bTries').onclick=()=>{
+  const box=document.getElementById('triesBox');box.innerHTML='';
+  for(let n=3;n<=10;n++){
+    const b=document.createElement('button');b.textContent=n;b.setAttribute('aria-label',n+'번');
+    if(n===MAX)b.className='sel';
+    b.onclick=()=>{MAX=n;store.set('tries',MAX);closeAll();newGame();};
+    box.appendChild(b);
+  }
+  open('ovTries');
+};
 
 function fit(){
   const m=document.querySelector('main');
   const cs=getComputedStyle(m);
   const w=m.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
   const h=m.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)
-    -document.getElementById('info').offsetHeight-8-document.getElementById('preview').offsetHeight-6;
+    -document.querySelector('.inforow').offsetHeight-8-document.getElementById('preview').offsetHeight-6;
   const n=answerJ.length||6, gap=5;
   const t=Math.max(24,Math.floor(Math.min(64,(w-(n-1)*gap)/n,(h-(MAX-1)*gap)/MAX)));
   board.style.setProperty('--t',t+'px');
